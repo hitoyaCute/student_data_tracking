@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/externals/reset.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-teacher.css') }}">
+</head>
+<body>
+
+  <!-- controls bar -->
+  <div class="teacher-top">
+    <div class="top-left">
+      <p>Section:</p>
+      <select id="section-selection">
+        {% if section_selections %}
+          {% for s in section_selections %}
+          <option value="{{ s.value }}">{{ s.content }}</option>
+          {% endfor %}
+        {% else %}
+          <option value="_">None</option>
+        {% endif %}
+      </select>
+    </div>
+    <p>Welcome {{ teacher_name }}</p>
+    <div class="top-right">
+      <span class="unsaved-dot" id="unsaved-dot"></span>
+      <span id="conn-dot" title="Connecting…"></span>
+      <button id="save-button">Save Draft</button>
+      <button id="publish-button">Publish grades</button>
+    </div>
+  </div>
+
+  <!-- main grade table — fills the screen -->
+  <div class="student-data-wrapper">
+    <table id="student-data">
+      <thead>
+
+        <!-- ROW 1: # | Students | ...group headers... | Average | Grade -->
+        <tr id="tr-head">
+          <th class="sticky-left col-num"     rowspan="2">#</th>
+          <th class="sticky-left col-student" rowspan="2">Students</th>
+
+          <!-- group <th>s injected here by JS, each with a + button inside -->
+
+          <th rowspan="2" class="col-tail col-avg" id="th-avg">
+            <button id="add-group-btn" title="Add group">+</button>
+            Average
+          </th>
+          <th rowspan="2" class="col-tail">Grade</th>
+        </tr>
+
+        <!-- ROW 2: individual column headers, injected by JS -->
+        <tr id="name-tr-head"></tr>
+
+      </thead>
+      <tbody id="student-tbody">
+        {% for s in students %}
+        <tr data-student-id="{{ s.id }}" data-name="{{ s.name }}">
+          <td class="sticky-left col-num">{{ loop.index }}</td>
+          <td class="sticky-left col-student">{{ s.name }}</td>
+          <!-- score tds injected by JS, then avg td and grade td from server below -->
+          {% for col in columns %}
+          <td class="td-score" data-col-id="{{ col.id }}">
+            <input class="score-input" type="number" min="0" max="{{ col.max }}"
+                   value="{{ scores.get(s.id|string, {}).get(col.id, '') }}"
+                   placeholder="—">
+          </td>
+          {% endfor %}
+          <td class="td-score-bg td-avg col-tail">
+            {{ averages.get(s.id|string, '—') }}
+          </td>
+          <td class="td-score-bg td-grade col-tail"><!-- JS computed --></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- analytics — visible only when scrolled past table -->
+  <div class="analytics-strip" id="analytics-strip">
+    <div class="kpi-card">
+      <span class="kpi-label">Class Average</span>
+      <span class="kpi-value" id="an-avg">—</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Pass Rate</span>
+      <span class="kpi-value" id="an-pass">—</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Highest</span>
+      <span class="kpi-value kpi-high" id="an-high">—</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Lowest</span>
+      <span class="kpi-value kpi-low" id="an-low">—</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Total Students</span>
+      <span class="kpi-value" id="an-total">—</span>
+    </div>
+    <div class="dist-card">
+      <span class="kpi-label">Grade Distribution</span>
+      <div class="dist-bars" id="an-dist"></div>
+    </div>
+    <div class="top-card">
+      <span class="kpi-label">Top Performers</span>
+      <ol class="top-list" id="an-top"></ol>
+    </div>
+  </div>
+
+  <!-- add-column modal (per group) -->
+  <div class="modal-backdrop" id="add-col-modal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <span>Add column to <strong id="modal-group-name"></strong></span>
+        <button class="modal-close" id="close-add-col-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label>Name</label>
+          <input id="new-col-name" type="text" placeholder="e.g. Quiz 4" maxlength="32">
+        </div>
+        <div class="modal-field">
+          <label>Max score</label>
+          <input id="new-col-max" type="number" min="1" value="100">
+        </div>
+        <button id="confirm-add-col">Add column</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- add-group modal -->
+  <div class="modal-backdrop" id="add-group-modal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <span>Add group</span>
+        <button class="modal-close" id="close-add-group-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label>Group name</label>
+          <input id="new-group-name" type="text" placeholder="e.g. Exam" maxlength="32">
+        </div>
+        <button id="confirm-add-group">Add group</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="gb-toast"></div>
+
+  <script src="{{ url_for('static', filename='js/externals/socket.io.min.js') }}"></script>
+  <script>
+  (() => {
+    /* ═══════════════════════════════════════════════════
+       SEED — server renders these; JS reads them
+    ═══════════════════════════════════════════════════ */
+    const SEED_GROUPS  = {{ groups   | tojson if groups   is defined else '["Quiz","Activity","Exam"]' }};
+    const SEED_COLS    = {{ columns  | tojson if columns  is defined else
+      '[{"id":"q1","name":"Quiz 1","group":"Quiz","max":50},{"id":"q2","name":"Quiz 2","group":"Quiz","max":50},{"id":"a1","name":"Act 1","group":"Activity","max":100},{"id":"e1","name":"Midterm","group":"Exam","max":100}]' }};
+    /* scores are already in the DOM via Jinja — JS reads them from inputs */
+
+    /* ═══════════════════════════════════════════════════
+       STATE
+    ═══════════════════════════════════════════════════ */
+    let groups  = [...SEED_GROUPS];
+    let cols    = SEED_COLS.map(c => ({ ...c }));
+    let unsaved = false;
+    let pendingGroup = null; /* which group the add-col modal targets */
+
+    const $ = id => document.getElementById(id);
+
+    /* ═══════════════════════════════════════════════════
+       WEBSOCKET
+    ═══════════════════════════════════════════════════ */
+    const socket = io({ transports: ['websocket'], reconnectionDelay: 2000 });
+    const connDot = $('conn-dot');
+
+    socket.on('connect',       () => { connDot.dataset.state = 'ok';  connDot.title = 'Connected'; });
+    socket.on('disconnect',    () => { connDot.dataset.state = 'off'; connDot.title = 'Disconnected'; });
+    socket.on('connect_error', () => { connDot.dataset.state = 'err'; connDot.title = 'Connection error'; });
+
+    socket.on('sync_ack',    ({ saved_at })     => { markSaved(); showToast('Saved ' + new Date(saved_at).toLocaleTimeString()); });
+    socket.on('publish_ack', ()                 => { markSaved(); showToast('Grades published'); $('publish-button').textContent = 'Published ✓'; setTimeout(() => $('publish-button').textContent = 'Publish grades', 3000); });
+    socket.on('error',       ({ message })      => showToast(message, 'error'));
+
+    function buildPayload(event) {
+      return { event, teacher_name: '{{ teacher_name }}', section: $('section-selection').value, groups, cols, scores: collectScores() };
+    }
+
+    function emitSync() {
+      if (!socket.connected) { showToast('Not connected', 'warn'); return; }
+      socket.emit('sync', buildPayload('sync'));
+    }
+
+    setInterval(() => { if (unsaved) emitSync(); }, 3 * 60 * 1000);
+
+    function markUnsaved() { unsaved = true;  $('unsaved-dot').classList.add('visible'); }
+    function markSaved()   { unsaved = false; $('unsaved-dot').classList.remove('visible'); }
+
+    function collectScores() {
+      const out = {};
+      document.querySelectorAll('#student-tbody tr').forEach(tr => {
+        const sid = tr.dataset.studentId;
+        out[sid] = {};
+        tr.querySelectorAll('.td-score').forEach(td => {
+          const v = parseFloat(td.querySelector('.score-input').value);
+          out[sid][td.dataset.colId] = isNaN(v) ? null : v;
+        });
+      });
+      return out;
+    }
+
+    function gradeFromPct(p) {
+      if (p >= 90) return 'A';
+      if (p >= 80) return 'B';
+      if (p >= 75) return 'C';
+      if (p >= 70) return 'D';
+      return 'F';
+    }
+
+    function updateGradeCell(tr) {
+      /* avg is already rendered by server; read it to compute grade */
+      const avgTd   = tr.querySelector('.td-avg');
+      const gradeTd = tr.querySelector('.td-grade');
+      const raw = parseFloat(avgTd.textContent);
+      if (isNaN(raw)) { gradeTd.textContent = '—'; return; }
+      const letter = gradeFromPct(raw);
+      gradeTd.innerHTML = `<span class="grade-badge grade-${letter}">${letter}</span>`;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       HEADER RENDERING
+       Builds group row + col-name row from state.
+       Called on init and whenever cols/groups change.
+    ═══════════════════════════════════════════════════ */
+    function renderHead() {
+      const trGroup = $('tr-head');
+      const trName  = $('name-tr-head');
+      const addGroupTh = $('th-avg');
+
+      /* clear previously injected group ths */
+      trGroup.querySelectorAll('.th-group-injected').forEach(e => e.remove());
+      trName.innerHTML = '';
+
+      const groupCounts = {};
+      cols.forEach(c => { groupCounts[c.group] = (groupCounts[c.group] || 0) + 1; });
+
+      /* inject group headers before the separator th */
+      groups.forEach(g => {
+        const count = groupCounts[g] || 0;
+        const th = document.createElement('th');
+        th.className = 'th-group th-group-injected';
+        th.colSpan = Math.max(count, 1); /* at least 1 so it's visible even when empty */
+
+        const label = document.createElement('span');
+        label.textContent = g;
+
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-col-btn';
+        addBtn.textContent = '+';
+        addBtn.title = `Add column to ${g}`;
+        addBtn.addEventListener('click', () => openAddColModal(g));
+
+        th.appendChild(label);
+        th.appendChild(addBtn);
+        trGroup.insertBefore(th, addGroupTh);
+      });
+
+      /* individual col-name headers */
+      cols.forEach(col => {
+        const th = document.createElement('th');
+        th.className = 'th-col';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'col-name-label';
+        nameSpan.textContent = col.name;
+        nameSpan.title = 'Double-click to rename';
+        nameSpan.addEventListener('dblclick', () => startInlineRename(nameSpan, col));
+
+        const maxSpan = document.createElement('span');
+        maxSpan.className = 'col-max-label';
+        maxSpan.textContent = '/' + col.max;
+        maxSpan.title = 'Click to change max';
+        maxSpan.addEventListener('click', () => startInlineMax(maxSpan, col));
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'del-col-btn';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Remove column';
+        delBtn.addEventListener('click', () => deleteCol(col.id));
+
+        th.appendChild(nameSpan);
+        th.appendChild(maxSpan);
+        th.appendChild(delBtn);
+        trName.appendChild(th);
+      });
+    }
+
+    function startInlineRename(span, col) {
+      const orig = col.name;
+      const inp = document.createElement('input');
+      inp.className = 'col-inline-input';
+      inp.value = orig; inp.maxLength = 32;
+      span.replaceWith(inp); inp.select();
+      const commit = () => {
+        const nw = inp.value.trim() || orig;
+        col.name = nw; span.textContent = nw;
+        inp.replaceWith(span);
+        if (nw !== orig) markUnsaved();
+      };
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') inp.blur();
+        if (e.key === 'Escape') { inp.value = orig; inp.blur(); }
+      });
+    }
+
+    function startInlineMax(span, col) {
+      const orig = col.max;
+      const inp = document.createElement('input');
+      inp.className = 'col-inline-input col-inline-max';
+      inp.type = 'number'; inp.min = '1'; inp.value = orig;
+      span.replaceWith(inp); inp.select();
+      const commit = () => {
+        const nw = parseInt(inp.value) || orig;
+        col.max = nw; span.textContent = '/' + nw;
+        /* clamp scores */
+        document.querySelectorAll(`[data-col-id="${col.id}"] .score-input`).forEach(inp2 => {
+          inp2.max = nw;
+          if (parseFloat(inp2.value) > nw) inp2.value = nw;
+        });
+        inp.replaceWith(span);
+        if (nw !== orig) markUnsaved();
+      };
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') inp.blur();
+        if (e.key === 'Escape') { inp.value = orig; inp.blur(); }
+      });
+    }
+
+    function openAddColModal(group) {
+      pendingGroup = group;
+      $('modal-group-name').textContent = group;
+      $('new-col-name').value = '';
+      $('new-col-max').value  = '100';
+      $('add-col-modal').hidden = false;
+      $('new-col-name').focus();
+    }
+
+    $('close-add-col-modal').addEventListener('click', () => { $('add-col-modal').hidden = true; });
+    $('add-col-modal').addEventListener('click', e => { if (e.target === $('add-col-modal')) $('add-col-modal').hidden = true; });
+
+    $('confirm-add-col').addEventListener('click', () => {
+      const name = $('new-col-name').value.trim();
+      const max  = parseInt($('new-col-max').value) || 100;
+      if (!name) { $('new-col-name').focus(); return; }
+
+      const col = { id: 'col_' + Date.now(), name, group: pendingGroup, max };
+      cols.push(col);
+
+      /* append a score td to every student row */
+      document.querySelectorAll('#student-tbody tr').forEach(tr => {
+        const td = document.createElement('td');
+        td.className = 'td-score';
+        td.dataset.colId = col.id;
+        const inp = document.createElement('input');
+        inp.className = 'score-input';
+        inp.type = 'number'; inp.min = '0'; inp.max = max;
+        inp.placeholder = '—';
+        inp.addEventListener('input', () => markUnsaved());
+        td.appendChild(inp);
+        /* insert before the avg td */
+        tr.querySelector('.td-avg').before(td);
+      });
+
+      renderHead();
+      markUnsaved();
+      $('add-col-modal').hidden = true;
+    });
+
+    function deleteCol(colId) {
+      if (!confirm('Remove this column? All scores for it will be lost.')) return;
+      cols = cols.filter(c => c.id !== colId);
+      document.querySelectorAll(`[data-col-id="${colId}"]`).forEach(e => e.remove());
+      renderHead();
+      markUnsaved();
+    }
+
+    $('add-group-btn').addEventListener('click', () => {
+      $('new-group-name').value = '';
+      $('add-group-modal').hidden = false;
+      $('new-group-name').focus();
+    });
+    $('close-add-group-modal').addEventListener('click', () => { $('add-group-modal').hidden = true; });
+    $('add-group-modal').addEventListener('click', e => { if (e.target === $('add-group-modal')) $('add-group-modal').hidden = true; });
+
+    $('confirm-add-group').addEventListener('click', () => {
+      const name = $('new-group-name').value.trim();
+      if (!name || groups.includes(name)) { $('new-group-name').focus(); return; }
+      groups.push(name);
+      renderHead();
+      markUnsaved();
+      $('add-group-modal').hidden = true;
+    });
+
+    document.querySelectorAll('.score-input').forEach(inp => {
+      inp.addEventListener('input', () => markUnsaved());
+    });
+
+    document.querySelectorAll('#student-tbody tr').forEach(updateGradeCell);
+
+    function refreshAnalytics() {
+      const avgs = [];
+      document.querySelectorAll('#student-tbody tr').forEach(tr => {
+        const v = parseFloat(tr.querySelector('.td-avg')?.textContent);
+        if (!isNaN(v)) avgs.push(v);
+      });
+
+      const total = avgs.length;
+      $('an-total').textContent = document.querySelectorAll('#student-tbody tr').length;
+
+      if (total === 0) {
+        ['an-avg','an-pass','an-high','an-low'].forEach(id => $(id).textContent = '—');
+        $('an-dist').innerHTML = $('an-top').innerHTML = '';
+        return;
+      }
+
+      const avg      = avgs.reduce((a,b) => a+b, 0) / total;
+      const passRate = avgs.filter(v => v >= 75).length / total * 100;
+      $('an-avg').textContent  = avg.toFixed(1) + '%';
+      $('an-pass').textContent = passRate.toFixed(0) + '%';
+      $('an-high').textContent = Math.max(...avgs).toFixed(1) + '%';
+      $('an-low').textContent  = Math.min(...avgs).toFixed(1) + '%';
+
+      const buckets = [
+        { label:'90+', min:90, max:101 },
+        { label:'80+', min:80, max:90  },
+        { label:'75+', min:75, max:80  },
+        { label:'<75', min: 0, max:75  },
+      ];
+      const counts = buckets.map(b => avgs.filter(v => v >= b.min && v < b.max).length);
+      const maxCnt = Math.max(...counts, 1);
+      $('an-dist').innerHTML = buckets.map((b,i) =>
+        `<div class="dist-col">
+          <div class="dist-bar" style="height:${Math.max(4,(counts[i]/maxCnt)*42)}px" title="${counts[i]} students"></div>
+          <span class="dist-tick">${b.label}</span>
+        </div>`).join('');
+
+      const rows = [...document.querySelectorAll('#student-tbody tr')]
+        .map(tr => ({ name: tr.dataset.name, pct: parseFloat(tr.querySelector('.td-avg')?.textContent) || 0 }))
+        .filter(r => r.pct > 0).sort((a,b) => b.pct - a.pct).slice(0,3);
+      $('an-top').innerHTML = rows.map((r,i) =>
+        `<li class="top-item">
+          <span class="top-rank">${i+1}.</span>
+          <span class="top-name">${r.name}</span>
+          <span class="top-score">${r.pct.toFixed(1)}%</span>
+        </li>`).join('');
+    }
+
+    refreshAnalytics();
+
+    $('save-button').addEventListener('click', () => {
+      $('save-button').textContent = 'Saving…';
+      emitSync();
+      setTimeout(() => $('save-button').textContent = 'Save Draft', 1200);
+    });
+
+    $('publish-button').addEventListener('click', () => {
+      if (!confirm('Publish grades? All students will be notified.')) return;
+      if (!socket.connected) { showToast('Not connected', 'error'); return; }
+      $('publish-button').textContent = 'Publishing…';
+      socket.emit('publish', buildPayload('publish'));
+    });
+
+    window.addEventListener('beforeunload', e => { if (unsaved) { e.preventDefault(); e.returnValue = ''; } });
+
+    let toastTimer;
+    function showToast(msg, type = 'ok') {
+      const el = $('gb-toast');
+      el.textContent = msg; el.dataset.type = type;
+      el.classList.add('visible');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('visible'), 3000);
+    }
+
+    renderHead();
+
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Grades</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/externals/reset.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-student.css') }}">
+</head>
+<body>
+
+  <!-- top bar -->
+  <div class="top">
+    <p class="student-name">Welcome {{ student.name }}</p>
+  </div>
+
+  <!-- one section block per class -->
+  {% for cls in classes %}
+  <div class="class-block">
+
+    <!-- class header -->
+    <div class="class-header">
+      <p class="class-name">{{ cls.name }}</p>
+      <div class="class-meta">
+        <span class="grade-badge grade-{{ cls.summary.grade }}">{{ cls.summary.grade }}</span>
+        <span class="class-avg">{{ cls.summary.average }}</span>
+        <span class="{% if cls.summary.passing %}status-pass{% else %}status-fail{% endif %}">
+          {% if cls.summary.passing %}Passing{% else %}Failing{% endif %}
+        </span>
+      </div>
+    </div>
+
+    {% if cls.published %}
+
+      <!-- group cards -->
+      <div class="groups">
+        {% for group in cls.groups %}
+        <div class="group-card">
+          <div class="group-header">
+            <p class="group-name">{{ group.name }}</p>
+            <p class="group-avg">{{ group.average }}</p>
+          </div>
+          <table class="group-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Score</th>
+                <th>Max</th>
+                <th>%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for col in group.columns %}
+              <tr>
+                <td class="col-name">{{ col.name }}</td>
+                <td class="col-score">{{ col.score if col.score is not none else '—' }}</td>
+                <td class="col-max">{{ col.max }}</td>
+                <td class="col-pct {% if col.pct is not none %}{% if col.pct >= 75 %}pct-pass{% else %}pct-fail{% endif %}{% endif %}">
+                  {{ col.pct | round(1) ~ '%' if col.pct is not none else '—' }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
+      </div>
+
+    {% else %}
+      <p class="unpublished-notice">Grades have not been published yet.</p>
+    {% endif %}
+
+  </div>
+  {% endfor %}
+
+</body>
+</html>

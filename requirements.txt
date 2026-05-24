@@ -1,0 +1,9 @@
+flask>=3.0
+flask-sqlalchemy>=3.1
+flask-login>=0.6
+flask-socketio>=5.3
+itsdangerous>=2.1
+werkzeug>=3.0
+python-socketio>=5.11
+eventlet>=0.35
+yagmail>=0.15

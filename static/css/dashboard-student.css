@@ -1,0 +1,181 @@
+/* ── tokens (same as teacher) ─────────────────────── */
+:root {
+  --bg:             #0f0f0f;
+  --surface:        #181818;
+  --border:         #2a2a2a;
+  --border-strong:  #3a3a3a;
+
+  --text:           #e0e0e0;
+  --text-secondary: #888;
+  --text-muted:     #444;
+
+  --accent:         #4f5de0;
+  --green:          #3ecf8e;
+  --red:            #e04f4f;
+  --amber:          #e0a030;
+
+  --topbar-h: 44px;
+}
+
+/* ── base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  min-height: 100dvh;
+
+  /* setting background */
+  background-image: url("/static/images/dashboard.jpeg");
+  background-size: 100% auto;
+  background-position: 0 20%;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+/* ── top bar ──────────────────────────────────────── */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--topbar-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+}
+
+.student-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ── class block ──────────────────────────────────── */
+.class-block {
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding-bottom: 20px;
+  background-color: #30302EF5;
+}
+
+.class-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  gap: 10px;
+}
+
+.class-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.class-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.class-avg { color: var(--text-secondary); }
+
+.status-pass { color: var(--green); }
+.status-fail { color: var(--red); }
+
+/* grade badge */
+.grade-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+.grade-A { background: rgba(62,207,142,.12); color: #3ecf8e; }
+.grade-B { background: rgba(79,93,224,.15);  color: #7b8cf7; }
+.grade-C { background: rgba(224,160,48,.12); color: #e0a030; }
+.grade-D { background: rgba(224,160,48,.07); color: #a07020; }
+.grade-F { background: rgba(224,79,79,.12);  color: #e04f4f; }
+
+/* ── groups ───────────────────────────────────────── */
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+@media (min-width: 640px) {
+  .groups {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .group-card { flex: 1; min-width: 200px; }
+}
+
+.group-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.group-name { font-size: 13px; font-weight: 500; color: var(--text); }
+.group-avg  { font-size: 12px; color: var(--text-secondary); }
+
+/* ── group table ──────────────────────────────────── */
+.group-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.group-table th {
+  padding: 7px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+}
+.group-table th:not(:first-child) { text-align: right; }
+
+.group-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.group-table tr:last-child td { border-bottom: none; }
+.group-table td:not(:first-child) { text-align: right; }
+
+.col-name  { color: var(--text-secondary); }
+.col-score { font-weight: 500; }
+.col-max   { color: var(--text-muted); }
+
+.pct-pass { color: var(--green); }
+.pct-fail { color: var(--red); }
+
+/* ── unpublished ──────────────────────────────────── */
+.unpublished-notice {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 20px 16px;
+}

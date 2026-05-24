@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+
+
+# initialize the DB server
+
+
+
+
+# runs the main system
+python3 app.py
+
+

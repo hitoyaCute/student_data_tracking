@@ -1,0 +1,83 @@
+:root {
+  --background-color: #262624F5;
+  --login-color: #30302EF5;
+  --border-col: #4A4A46F5;
+  --common-col: #F3F9F1F5;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--background-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: sans-serif;
+  color: var(--common-col);
+  background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 1)),url("/static/images/login.jpeg");
+  background-size: 100% auto;
+  background-position: 0 30%;
+}
+
+#login_window {
+  width: 320px;
+  border: 1px solid var(--border-col);
+  background-color: var(--login-color);
+  border-radius: 8px;
+  padding: 36px 28px;
+}
+
+h1 {
+  font-size: 20px;
+  margin-bottom: 24px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 5px;
+  color: var(--common-col);
+}
+
+input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border-col);
+  border-radius: 5px;
+  color: var(--common-col);
+  font-size: 14px;
+  outline: none;
+  background-color: var(--login-color);
+  transition: border-color 0.8s ease-in-out
+}
+
+input:focus {
+  border-color: #666;
+}
+
+button[type="submit"] {
+  margin-top: 20px;
+  width: 100%;
+  padding: 10px;
+  background: #111;
+  color: var(--common-col);
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.0s ease-in-out;
+}
+
+button[type="submit"]:hover {
+  transition: background 0.8s ease-in-out;
+  background: #262624;
+}
