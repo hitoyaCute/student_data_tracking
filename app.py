@@ -18,9 +18,10 @@ socketio = flask_socketio.SocketIO(app, cors_allowed_origins="*")
 def root():
     return flask.redirect("/login")
 
-
 @app.route("/login", methods=["POST", "GET"])
 def login():
+    # TODO:
+    # add DB and verification syhstem
     if flask.request.method == "POST":
         print(flask.request.form)
         print(tuple(flask.request.form.items()))
@@ -33,6 +34,7 @@ def login():
 @app.route("/dashboard/teacher")
 def dashboard_teacher():
     # TODO: pull real data from DB; stub data shown below
+    # pass a precomputed data
     return flask.render_template(
         "dashboard-teacher.html",
         teacher_name="Ms. Reyes",
@@ -68,6 +70,7 @@ def dashboard_teacher():
 
 @app.route("/dashboard/student")
 def dashboard_student():
+    # pass a precomputed data
     return flask.render_template(
         "dashboard-student.html",
         student={"name": "Juan dela Cruz"},
@@ -175,28 +178,14 @@ users:
     
 # info about student's scores which can be used to compute grades
 student_score_card:
-    SCORE_ID unique key int
-    scores JSON BLOB # format [{"name": "name of a score group", "columns": [{"name": "name of the score","score":<int>, "max":<int max score>},...]},...]
-                     #    sample [
-                     #             {
-                     #              "name": "Quiz",
-                     #              "columns": [
-                     #                  {
-                     #                   "name": "Quiz 1",
-                     #                   "score": 45,
-                     #                   "max": 50
-                     #                  },
-                     #                  {
-                     #                   "name": "Quiz 2",
-                     #                   "score": 38,
-                     #                   "max": 50
-                     #                  }
-                     #              ]
-                     #             },
-                     #             next score
-                     #           ]
-    owner int (USER_ID from users)
-    class int (CLASS_DATA_ID from class_data)
+    SCORE_ID   unique key int
+    owner      int (USER_ID from users)
+    class      int (CLASS_DATA_ID from class_data)
+    
+    group_name string[32] (like "quiz", "activity")
+    test_name  string[32] (like "quiz 1" or "project 1")
+    score      int
+    max_score  int
     
 
 # stores all the info about the class
