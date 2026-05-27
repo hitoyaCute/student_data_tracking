@@ -77,68 +77,26 @@ def dashboard_root():
         flask.session.clear()
         return flask.redirect("/login")
 def dashboard_teacher(user: User):
-    # TODO: pull real data from DB; stub data shown below
-    # pass a precomputed data
+    class_id = flask.request.args.get("class_id", 0,type=int)
+    data = DB.fetch_teacher_data(user.user_id, class_id)
     return flask.render_template(
         "dashboard-teacher.html",
-        teacher_name="Ms. Reyes",
-        section_id="s1",
-        section_selections=[
-            {"value": "s1", "content": "Grade 10 - Rizal"},
-            {"value": "s2", "content": "Grade 10 - Bonifacio"},
-        ],
-        students=[
-            [
-                {"id": str(x + 1), "name": f"Juan dela Cruz ({x + 1})"},
-                {"id": str(x + 1), "name": f"Maria Santos ({x + 1})"},
-                {"id": str(x + 1), "name": f"Pedro Reyes ({x + 1})"},
-            ][x % 3]
-            for x in range(4)
-        ],
-        groups=["Quiz", "Activity", "Exam"],
-        columns=[
-            {"id": "q1", "name": "Quiz 1", "group": "Quiz", "max": 50},
-            {"id": "q2", "name": "Quiz 2", "group": "Quiz", "max": 50},
-            {"id": "a1", "name": "Act 1", "group": "Activity", "max": 100},
-            {"id": "e1", "name": "Midterm", "group": "Exam", "max": 100},
-        ],
-        scores={
-            "1": {"q1": 45, "q2": 38, "a1": 88, "e1": 79},
-            "2": {"q1": 50, "q2": 47, "a1": 95, "e1": 91},
-            "3": {"q1": 30, "q2": 28, "a1": 72, "e1": 65},
-            "4": {"q1": 30, "q2": 28, "a1": 72, "e1": 65},
-        },
-        averages={str(x + 1): str(rd.randint(75,99)) for x in range(4)},
+        teacher_name      = user.user_name,
+        section_id        = class_id,
+        section_selections= data["section_selections"],
+        students          = data["students"],
+        groups            = data["groups"],
+        columns           = data["columns"],
+        scores            = data["scores"],
+        averages          = data["averages"],
     )
 
 def dashboard_student(user: User):
-    # pass a precomputed data
+    data = DB.fetch_student_data(user.user_id)
     return flask.render_template(
         "dashboard-student.html",
-        student={"name": "Juan dela Cruz"},
-        classes=[
-            {
-                "name": "Mathematics",
-                "published": True,
-                "summary": {"average": "84.2%", "grade": "B", "passing": True},
-                "groups": [
-                    {
-                        "name": "Quiz",
-                        "average": "88.0%",
-                        "columns": [
-                            {"name": "Quiz 1", "score": 45, "max": 50, "pct": 90.0},
-                            {"name": "Quiz 2", "score": 38, "max": 50, "pct": 76.0},
-                        ],
-                    },
-                ],
-            },
-            {
-                "name": "Science",
-                "published": False,  # shows unpublished notice, hides groups
-                "summary": {"average": "—", "grade": "—", "passing": False},
-                "groups": [],
-            },
-        ],
+        student = {"name": user.user_name},
+        classes = data["classes"],
     )
 
 # WebSocket events
@@ -154,18 +112,16 @@ def handle_sync(data):
         scores:   {student_id: {col_id: score}},
     }
     """
-    teacher_name = data.get("teacher_name")
-    section = data.get("section")
-    groups = data.get("groups", [])
-    cols = data.get("cols", [])
-    scores = data.get("scores", {})
-    print(f"synced, teacher_name: {teacher_name}\n\t{section, groups, cols, scores = }")
-
-    # TODO: persist to DB here
-    # save_grades_to_db(section, groups, cols, scores)
-
+    class_id = int(data.get("section", -1))
+    cols     = data.get("cols", [])
+    scores   = data.get("scores", {})
+ 
+    DB.save_grades(class_id, cols, scores)
+    print(f"[sync] class_id={class_id} {len(cols)} cols, {len(scores)} students")
+ 
     saved_at = datetime.now(timezone.utc).isoformat()
     flask_socketio.emit("sync_ack", {"saved_at": saved_at})
+
 
 
 @socketio.on("publish")
@@ -174,21 +130,17 @@ def handle_publish(data):
     Same payload as sync — but also triggers email notifications
     to every student in the section.
     """
-    teacher_name = data.get("teacher_name")
-    section = data.get("section")
-    groups = data.get("groups", [])
-    cols = data.get("cols", [])
-    scores = data.get("scores", {})
-    print(f"a teacher submited a grades, teacher_name: {teacher_name}\n\t{section, groups, cols, scores}")
-
-    # TODO: persist to DB
-    # save_grades_to_db(section, groups, cols, scores)
-
-    # TODO: send email notifications
-    # notify_students(section, published=True)
-
+    class_id = int(data.get("section", -1))
+    cols     = data.get("cols", [])
+    scores   = data.get("scores", {})
+ 
+    DB.save_grades(class_id, cols, scores)
+    # TODO: notify_students(class_id)
+    print(f"[publish] class_id={class_id} {len(cols)} cols, {len(scores)} students")
+ 
     published_at = datetime.now(timezone.utc).isoformat()
     flask_socketio.emit("publish_ack", {"published_at": published_at})
+
 
 
 if __name__ == "__main__":
