@@ -1,15 +1,17 @@
 import flask
 from datetime import datetime, timezone
-from flask_socketio import SocketIO, emit
+import flask_socketio
 
 import random as rd
 
 # email
-import utils
+import utils.argon_utils as argon
+
+
 
 app = flask.Flask(__name__)
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = flask_socketio.SocketIO(app, cors_allowed_origins="*")
 
 
 @app.route("/")
@@ -22,6 +24,9 @@ def login():
     if flask.request.method == "POST":
         print(flask.request.form)
         print(tuple(flask.request.form.items()))
+        password = flask.request.form.get("password")
+        if isinstance(password, str):
+           print(argon.hash_password(password))
     return flask.render_template("login.html")
 
 
@@ -116,7 +121,7 @@ def handle_sync(data):
     # save_grades_to_db(section, groups, cols, scores)
 
     saved_at = datetime.now(timezone.utc).isoformat()
-    emit("sync_ack", {"saved_at": saved_at})
+    flask_socketio.emit("sync_ack", {"saved_at": saved_at})
 
 
 @socketio.on("publish")
@@ -139,7 +144,7 @@ def handle_publish(data):
     # notify_students(section, published=True)
 
     published_at = datetime.now(timezone.utc).isoformat()
-    emit("publish_ack", {"published_at": published_at})
+    flask_socketio.emit("publish_ack", {"published_at": published_at})
 
 
 if __name__ == "__main__":
@@ -154,6 +159,53 @@ section = data.get("section")           # name of the selected section
 groups = data.get("groups", [])         # groups like "activity, quiz"
 cols = data.get("cols", [])             # specifics like activity1, project1 or final_exam in order
 scores = data.get("scores", {})         # all the scores on order
+
+
+
+
+DB structure
+
+# all of the user registered to the system
+users:
+    USER_ID unique int
+    user_name       string[32]
+    login_user_name string[32]
+    login_user_pass string[256] (argon2 hashed)
+    user_type       int  (0 = student, 1 = teacher, other = unknown)
+    
+# info about student's scores which can be used to compute grades
+student_score_card:
+    SCORE_ID unique key int
+    scores JSON BLOB # format [{"name": "name of a score group", "columns": [{"name": "name of the score","score":<int>, "max":<int max score>},...]},...]
+                     #    sample [
+                     #             {
+                     #              "name": "Quiz",
+                     #              "columns": [
+                     #                  {
+                     #                   "name": "Quiz 1",
+                     #                   "score": 45,
+                     #                   "max": 50
+                     #                  },
+                     #                  {
+                     #                   "name": "Quiz 2",
+                     #                   "score": 38,
+                     #                   "max": 50
+                     #                  }
+                     #              ]
+                     #             },
+                     #             next score
+                     #           ]
+    owner int (USER_ID from users)
+    class int (CLASS_DATA_ID from class_data)
+    
+
+# stores all the info about the class
+class_data:
+    CLASS_DATA_ID unique int
+    teacher       int (USER_ID from users)
+    
+    subject_name  string[32]
+    students      JSON BLOB # format ["USER_ID",...] # stores all the registered student
 
 
 '''
