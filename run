@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 
 
-
-# initialize the DB server
-
-
-
-
 # runs the main system
-python3 app.py
+# change the path on your venv
 
+PYTHON_PATH="~/anaconda3/bin/python"
+
+
+if [[ "$1" == "-admin" ]]; then
+    PYTHON_PATH admin.py
+else
+    PYTHON_PATH app.py
+fi
 
