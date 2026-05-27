@@ -5,34 +5,78 @@ import flask_socketio
 import random as rd
 
 # email
-import utils.argon_utils as argon
-
-
+from Msystem import DB
+from Msystem.Objects import User
 
 app = flask.Flask(__name__)
-
+app.secret_key = "change-me-before-deploy"  # needed for session to work
+ 
 socketio = flask_socketio.SocketIO(app, cors_allowed_origins="*")
-
-
+ 
+ 
+# ── helpers ───────────────────────────────────────────────────────────────────
+ 
+def get_current_user() -> User | None:
+    """Fetch the logged-in user from DB using the ID stored in session."""
+    user_id = flask.session.get("user_id")
+    if user_id is None:
+        return None
+    return DB.get_user_byID(user_id)
+ 
+ 
+# ── routes ────────────────────────────────────────────────────────────────────
+ 
 @app.route("/")
 def root():
     return flask.redirect("/login")
-
+ 
+ 
 @app.route("/login", methods=["POST", "GET"])
 def login():
-    # TODO:
-    # add DB and verification syhstem
+    # already logged in — send them to dashboard
+    if flask.session.get("user_id"):
+        return flask.redirect("/dashboard")
+ 
     if flask.request.method == "POST":
-        print(flask.request.form)
-        print(tuple(flask.request.form.items()))
-        password = flask.request.form.get("password")
-        if isinstance(password, str):
-           print(argon.hash_password(password))
+        username = flask.request.form.get("user_name", "")
+        password = flask.request.form.get("password", "")
+ 
+        user = DB.get_user(username)
+ 
+        if user and user.verify_password(password):
+            flask.session["user_id"] = user.user_id  # persist across requests
+            return flask.redirect("/dashboard")
+        else:
+            return flask.render_template(
+                "login.html",
+                error="Invalid username or password, please try again."
+            )
+ 
     return flask.render_template("login.html")
-
-
-@app.route("/dashboard/teacher")
-def dashboard_teacher():
+ 
+ 
+@app.route("/logout")
+def logout():
+    flask.session.clear()
+    return flask.redirect("/login")
+ 
+ 
+@app.route("/dashboard")
+def dashboard_root():
+    user = get_current_user()
+ 
+    if user is None:
+        return flask.redirect("/login")
+ 
+    if user.is_teacher():
+        return dashboard_teacher(user)
+    elif user.is_student():
+        return dashboard_student(user)
+    else:
+        print("SessionError: unexpected user type")
+        flask.session.clear()
+        return flask.redirect("/login")
+def dashboard_teacher(user: User):
     # TODO: pull real data from DB; stub data shown below
     # pass a precomputed data
     return flask.render_template(
@@ -67,9 +111,7 @@ def dashboard_teacher():
         averages={str(x + 1): str(rd.randint(75,99)) for x in range(4)},
     )
 
-
-@app.route("/dashboard/student")
-def dashboard_student():
+def dashboard_student(user: User):
     # pass a precomputed data
     return flask.render_template(
         "dashboard-student.html",
@@ -98,7 +140,6 @@ def dashboard_student():
             },
         ],
     )
-
 
 # WebSocket events
 @socketio.on("sync")
@@ -194,5 +235,4 @@ class_data:
     teacher       int (USER_ID from users)
     
     subject_name  string[32]
-    students      JSON BLOB # format ["USER_ID",...] # stores all the registered student
 '''
