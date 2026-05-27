@@ -195,6 +195,4 @@ class_data:
     
     subject_name  string[32]
     students      JSON BLOB # format ["USER_ID",...] # stores all the registered student
-
-
 '''
