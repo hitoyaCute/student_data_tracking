@@ -1,41 +1,54 @@
-from Objects import User
+import os
+from Msystem.Objects import User
 
 import sqlite3
-import utils.argon_utils as argon
 
 DB_NAME = "MAIN_DB.db"
 
 
-# connect to the server
-_connection = sqlite3.connect(DB_NAME)
-_cursor     = _connection.cursor()
+_connection: sqlite3.Connection
+_cursor    : sqlite3.Cursor
 
-# if DB is empty
-if _cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
+def _init_db():
+    global _cursor, _connection
+    db_exists = os.path.exists(DB_NAME)
+    
+    if not db_exists:
+        _repopulate()
+    else:
+        _connection = sqlite3.connect(DB_NAME)
+        _cursor     = _connection.cursor()
+
+# connect to the server
+def _repopulate():
+    global _cursor, _connection
+    _connection = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
+    _connection.execute("PRAGMA journal_mode=WAL")
+    _cursor     = _connection.cursor()
     # initialize users_table
     _cursor.execute("CREATE TABLE users ("
-                    "  USER_ID         INTIGER PRIMARY KEY NOT NULL,"
+                    "  USER_ID         INTEGER PRIMARY KEY AUTOINCREMENT,"
                     "  user_name       TEXT    NOT NULL,"
                     "  login_user_name TEXT    NOT NULL,"
                     "  login_user_pass TEXT    NOT NULL,"
-                    "  user_type       INTIGER NOT NULL)") # (0 = student, 1 = teacher, other = unknown)
+                    "  user_type       INTEGER)") # (0 = student, 1 = teacher, other = unknown)
 
     _cursor.execute("CREATE TABLE student_score_card ("
-                    "  SCORE_ID   INTIGER PRIMARY KEY NOT NULL," #
-                    "  owner      INTIGER NOT NULL,"    # USER_ID from users
-                    "  class      INTIGER NOT NULL,"    # CLASS_DATA_ID from  class_data
+                    "  SCORE_ID   INTEGER PRIMARY KEY AUTOINCREMENT," #
+                    "  owner      INTEGER NOT NULL,"    # USER_ID from users
+                    "  class      INTEGER NOT NULL,"    # CLASS_DATA_ID from  class_data
 
                     "  group_name TEXT    NOT NULL,"    # (like "quiz", "activity")
                     "  test_name  TEXT    NOT NULL,"    # (like "quiz 1" or "project 1")
-                    "  score      INTIGER,"
-                    "  max_score  INTIGER)")
+                    "  score      INTEGER,"
+                    "  max_score  INTEGER)")
 
     _cursor.execute("CREATE TABLE class_data ("
-                    "  CLASS_DATA_ID INTIGER PRIMARY KEY NOT NULL,"
-                    "  teacher       INTIGER NOT NULL," # (USER_ID from users)
+                    "  CLASS_DATA_ID INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  teacher       INTEGER NOT NULL," # (USER_ID from users)
 
                     "  subject_name  TEXT    NOT NULL)")
-_connection.commit()
+    _connection.commit()
 
 
 def get_user(user_name: str) -> User | None:
@@ -172,10 +185,10 @@ def fetch_teacher_data(teacher_id: int, class_id: int) -> dict:
             if sc[2] is not None and sc[3]:
                 earned += sc[2]
                 total  += sc[3]
- 
+
         scores[sid_str]   = flat
         averages[sid_str] = f"{earned / total * 100:.1f}" if total else "—"
- 
+
     return {
         "section_selections": section_selections,
         "students":           students,
@@ -217,13 +230,13 @@ def fetch_student_data(student_id: int) -> dict:
     for cls_row in class_rows:
         class_id     = cls_row[0]
         subject_name = cls_row[1]
- 
+
         score_rows = _cursor.execute(
             "SELECT group_name, test_name, score, max_score "
             "FROM student_score_card WHERE owner = ? AND class = ? ORDER BY SCORE_ID",
             (student_id, class_id)
         ).fetchall()
- 
+
         # build groups with columns
         group_map: dict[str, list] = {}
         for sc in score_rows:
@@ -236,13 +249,13 @@ def fetch_student_data(student_id: int) -> dict:
                 "max":   max_score,
                 "pct":   pct,
             })
- 
+
         # compute overall average and grade
         all_scores = [col for cols in group_map.values() for col in cols]
         earned = sum(c["score"] for c in all_scores if c["score"] is not None)
         total  = sum(c["max"]   for c in all_scores if c["score"] is not None)
         avg    = earned / total * 100 if total else None
- 
+
         def grade(p):
             if p is None:
                 return "—"
@@ -255,7 +268,7 @@ def fetch_student_data(student_id: int) -> dict:
             if p >= 70:
                 return "D"
             return "F"
- 
+
         # per-group averages
         groups_out = []
         for group_name, cols in group_map.items():
@@ -266,7 +279,7 @@ def fetch_student_data(student_id: int) -> dict:
                 "average": f"{g_earned / g_total * 100:.1f}%" if g_total else "—",
                 "columns": cols,
             })
- 
+
         classes.append({
             "name":      subject_name,
             "published": True,
@@ -331,6 +344,11 @@ def save_grades(class_id: int, cols: list, scores: dict) -> None:
  
     _connection.commit()
 
+
+if __name__ == "__main__":
+    exit()
+else:
+    _init_db()
 
 '''DB structure
 # all of the user registered to the system

@@ -4,12 +4,12 @@
 # runs the main system
 # change the path on your venv
 
-PYTHON_PATH="~/anaconda3/bin/python"
+PYTHON_PATH=~/anaconda3/bin/python
 
 
 if [[ "$1" == "-admin" ]]; then
-    PYTHON_PATH admin.py
+    $PYTHON_PATH admin.py
 else
-    PYTHON_PATH app.py
+    $PYTHON_PATH app.py
 fi
 
