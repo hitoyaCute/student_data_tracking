@@ -76,25 +76,24 @@ def dashboard_root():
         print("SessionError: unexpected user type")
         flask.session.clear()
         return flask.redirect("/login")
+
 def dashboard_teacher(user: User):
-    class_id = flask.request.args.get("class_id", 0,type=int)
-    data = DB.fetch_teacher_data(user.user_id, class_id)
-    return flask.render_template(
-        "dashboard-teacher.html",
-        teacher_name      = user.user_name,
-        section_id        = class_id,
-        section_selections= data["section_selections"],
-        students          = data["students"],
-        groups            = data["groups"],
-        columns           = data["columns"],
-        scores            = data["scores"],
-        averages          = data["averages"],
+    class_id = flask.request.args.get("class_id", -1,type=int)
+    data     = DB.fetch_teacher_data(user.user_id, class_id)
+    return flask.render_template("dashboard-teacher.html",
+        teacher_name       = user.user_name,
+        section_id         = class_id,
+        section_selections = data["section_selections"],
+        students           = data["students"],
+        groups             = data["groups"],
+        columns            = data["columns"],
+        scores             = data["scores"],
+        averages           = data["averages"],
     )
 
 def dashboard_student(user: User):
     data = DB.fetch_student_data(user.user_id)
-    return flask.render_template(
-        "dashboard-student.html",
+    return flask.render_template("dashboard-student.html",
         student = {"name": user.user_name},
         classes = data["classes"],
     )
